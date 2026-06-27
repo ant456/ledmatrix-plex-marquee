@@ -1,0 +1,21 @@
+{
+  "plex-marquee": {
+    "enabled": true,
+    "display_duration": 30,
+    "rotation_duration": 30,
+    "update_interval": 15,
+    "live_priority": true,
+    "ha_url": "http://192.168.0.36:8123",
+    "ha_token": "YOUR-HA-TOKEN-HERE",
+    "tmdb_token": "YOUR-TMDB-BEARER-TOKEN-HERE",
+    "fanart_api_key": "YOUR-FANART-API-KEY-HERE",
+    "plex_url": "http://192.168.0.105:32400",
+    "plex_token": "YOUR-PLEX-TOKEN-HERE",
+    "portal_port": 5009,
+    "auto_recent_count": 20,
+    "plex_entities": [
+      "media_player.plex_plex_for_android_tv_google_tv_streamer",
+      "media_player.plex_plex_for_android_tv_shield_android_tv"
+    ]
+  }
+}

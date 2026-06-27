@@ -1,0 +1,14 @@
+{
+  "id": "plex-marquee",
+  "name": "Plex Marquee",
+  "version": "1.0.0",
+  "description": "Cinema marquee display — shows TMDB backdrop art for whatever is playing on any Plex player. Keeps last artwork showing when nothing is playing.",
+  "author": "Custom",
+  "entry_point": "manager.py",
+  "class_name": "PlexMarqueePlugin",
+  "display_modes": ["plex_marquee"],
+  "update_interval": 15,
+  "versions": [
+    { "version": "1.0.0", "released": "2026-06-22", "ledmatrix_min": "2.0.0" }
+  ]
+}

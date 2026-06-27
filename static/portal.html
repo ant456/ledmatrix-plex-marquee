@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plex Marquee</title>
+<style>
+  :root {
+    --bg:     #080b0a;
+    --panel:  #101615;
+    --panel2: #0c1110;
+    --border: #1a2522;
+    --accent: #e8b84b;
+    --on:     #4dd08a;
+    --on-dim: #1d4f37;
+    --text:   #d6e0dc;
+    --dim:    #6a7c76;
+    --mono: 'DM Mono', ui-monospace, monospace;
+    --sans: 'Space Grotesk', system-ui, sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  header { margin-bottom: 28px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+             text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); font-family: var(--mono); }
+  .sub { color: var(--dim); font-size: 13px; margin-top: 6px; }
+
+  /* Search */
+  .search-row { display: flex; gap: 8px; margin: 24px 0; }
+  .search-row input {
+    flex: 1; background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); padding: 11px 14px; border-radius: 8px;
+    font-family: var(--sans); font-size: 14px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-row input:focus { border-color: var(--accent); }
+  .search-row button {
+    background: var(--accent); color: #000; border: none;
+    padding: 11px 20px; border-radius: 8px; font-family: var(--mono);
+    font-size: 12px; font-weight: 500; cursor: pointer; letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .search-row button:hover { opacity: 0.85; }
+
+  /* Search results */
+  .results { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
+  .result-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .result-item:hover { border-color: var(--accent); }
+  .result-title { font-weight: 500; font-size: 14px; }
+  .result-meta { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .result-type {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 4px; background: var(--panel2);
+    border: 1px solid var(--border); color: var(--dim); flex-shrink: 0;
+  }
+
+  /* Banner gallery */
+  .gallery-wrap {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 28px; display: none;
+  }
+  .gallery-wrap.visible { display: block; }
+  .gallery-title {
+    font-size: 16px; font-weight: 600; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .gallery-sub { font-size: 12px; color: var(--dim); margin-bottom: 16px; font-family: var(--mono); }
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .banner-card {
+    border: 2px solid var(--border); border-radius: 6px; overflow: hidden;
+    cursor: pointer; transition: border-color 0.15s, transform 0.15s;
+    background: #000; position: relative;
+  }
+  .banner-card:hover { border-color: var(--accent); transform: scale(1.02); }
+  .banner-card img {
+    width: 100%; aspect-ratio: 4/1; object-fit: cover;
+    display: block; image-rendering: pixelated;
+  }
+  .banner-type {
+    position: absolute; top: 4px; left: 4px;
+    background: rgba(0,0,0,0.7); color: var(--dim);
+    font-family: var(--mono); font-size: 9px; padding: 2px 5px;
+    border-radius: 3px; text-transform: uppercase;
+  }
+  .banner-add {
+    position: absolute; bottom: 4px; right: 4px;
+    background: var(--accent); color: #000;
+    font-family: var(--mono); font-size: 9px; padding: 3px 7px;
+    border-radius: 4px; opacity: 0; transition: opacity 0.15s;
+    text-transform: uppercase; font-weight: 600;
+  }
+  .banner-card:hover .banner-add { opacity: 1; }
+
+  /* Section headers */
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 28px 0 14px;
+  }
+  .section-head h2 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .count { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+
+  /* Rotation list */
+  ul#rotation { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  li.rot-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 9px; padding: 8px 12px; transition: opacity 0.15s;
+  }
+  li.rot-row.disabled { opacity: 0.4; }
+  .handle { cursor: grab; color: var(--dim); font-size: 18px; user-select: none; }
+  .rot-thumb {
+    width: 120px; height: 30px; object-fit: cover;
+    border-radius: 3px; border: 1px solid var(--border);
+    background: #000; flex-shrink: 0; image-rendering: pixelated;
+  }
+  .rot-meta { flex: 1; min-width: 0; }
+  .rot-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rot-sub { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .rot-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  button.act {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    border: 1px solid var(--border); background: var(--panel2);
+    color: var(--dim); padding: 6px 10px; border-radius: 6px; cursor: pointer;
+    transition: all 0.14s;
+  }
+  button.act:hover { color: var(--text); border-color: var(--dim); }
+  button.act.danger:hover { color: #ff5d3b; border-color: #ff5d3b; }
+  .on-badge { color: var(--on); border-color: var(--on-dim); }
+
+  .empty {
+    text-align: center; padding: 32px; color: var(--dim); font-size: 13px;
+    border: 1px dashed var(--border); border-radius: 9px;
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); color: var(--text);
+    padding: 11px 18px; border-radius: 8px; font-family: var(--mono);
+    font-size: 12px; transition: transform 0.3s cubic-bezier(.2,.8,.2,1); z-index: 99;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.ok { border-left-color: var(--on); }
+  #toast.err { border-left-color: #ff5d3b; }
+
+  .loading { color: var(--dim); font-family: var(--mono); font-size: 12px;
+             text-align: center; padding: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Plex Marquee · Banner Library</div>
+    <h1>Cinema <span>[Marquee]</span></h1>
+    <p class="sub">Search your Plex library, browse Fanart.tv banners, and build your rotation.</p>
+  </header>
+
+  <!-- Search -->
+  <div class="search-row">
+    <input type="text" id="searchInput" placeholder="Search your Plex library..." autocomplete="off">
+    <button onclick="doSearch()">Search</button>
+  </div>
+  <div class="results" id="results"></div>
+
+  <!-- Banner gallery for selected title -->
+  <div class="gallery-wrap" id="galleryWrap">
+    <div class="gallery-title" id="galleryTitle"></div>
+    <div class="gallery-sub" id="gallerySub"></div>
+    <div class="gallery" id="gallery">
+      <div class="loading">Loading banners...</div>
+    </div>
+  </div>
+
+  <!-- Rotation list -->
+  <div class="section-head">
+    <h2>In Rotation</h2>
+    <span class="count" id="rotCount">0 banners</span>
+  </div>
+  <ul id="rotation"></ul>
+</div>
+<div id="toast"></div>
+
+<script>
+let currentTitle = null;
+let currentTmdbId = null;
+let currentType = null;
+
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type ? `show ${type}` : 'show';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = '', 2800);
+}
+
+// ── Search ──
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+async function doSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  const r = document.getElementById('results');
+  r.innerHTML = '<div class="loading">Searching Plex...</div>';
+  document.getElementById('galleryWrap').classList.remove('visible');
+
+  const res  = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  const data = await res.json();
+  r.innerHTML = '';
+
+  if (!data.length) {
+    r.innerHTML = '<div class="empty">No results found in your Plex library</div>';
+    return;
+  }
+
+  data.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.innerHTML = `
+      <div style="flex:1">
+        <div class="result-title">${esc(item.title)}</div>
+        <div class="result-meta">${item.year || '—'}</div>
+      </div>
+      <span class="result-type">${item.type}</span>`;
+    div.addEventListener('click', () => showBanners(item));
+    r.appendChild(div);
+  });
+}
+
+// ── Banner gallery ──
+async function showBanners(item) {
+  currentTitle  = item.title;
+  currentType   = item.type;
+
+  const wrap = document.getElementById('galleryWrap');
+  const gal  = document.getElementById('gallery');
+  wrap.classList.add('visible');
+  document.getElementById('galleryTitle').textContent = item.title;
+  document.getElementById('gallerySub').textContent   = `${item.year} · ${item.type} · fetching banners from Fanart.tv...`;
+  gal.innerHTML = '<div class="loading">Loading banners...</div>';
+
+  const res  = await fetch(`/api/banners?title=${encodeURIComponent(item.title)}&year=${item.year}&type=${item.type}`);
+  const data = await res.json();
+
+  if (!res.ok) {
+    gal.innerHTML = `<div class="loading" style="color:#ff5d3b">${data.error || 'Failed to load banners'}</div>`;
+    return;
+  }
+
+  currentTmdbId = data.tmdb_id;
+  document.getElementById('gallerySub').textContent =
+    `TMDB ID ${data.tmdb_id} · ${data.banners.length} banners available · click to add to rotation`;
+
+  if (!data.banners.length) {
+    gal.innerHTML = '<div class="loading">No banners found on Fanart.tv for this title</div>';
+    return;
+  }
+
+  gal.innerHTML = '';
+  data.banners.forEach(b => {
+    const card = document.createElement('div');
+    card.className = 'banner-card';
+    card.innerHTML = `
+      <img src="/api/preview?url=${encodeURIComponent(b.url)}" alt="" loading="lazy">
+      <span class="banner-type">${b.type}</span>
+      <span class="banner-add">+ Add</span>`;
+    card.addEventListener('click', () => addBanner(b.url, item.title, data.tmdb_id, item.type));
+    gal.appendChild(card);
+  });
+}
+
+async function addBanner(url, title, tmdb_id, media_type) {
+  const res = await fetch('/api/library', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url, title, tmdb_id, media_type })
+  });
+  if (res.ok) {
+    toast(`Added "${title}" to rotation`, 'ok');
+    loadRotation();
+  } else {
+    toast('Failed to add banner', 'err');
+  }
+}
+
+// ── Rotation list ──
+let rotation = [];
+
+async function loadRotation() {
+  const res = await fetch('/api/library');
+  rotation  = await res.json();
+  renderRotation();
+}
+
+function renderRotation() {
+  const ul = document.getElementById('rotation');
+  document.getElementById('rotCount').textContent =
+    `${rotation.length} banner${rotation.length !== 1 ? 's' : ''}`;
+
+  if (!rotation.length) {
+    ul.innerHTML = '<div class="empty">No banners yet — search and add some above.<br><br>When empty, the marquee auto-rotates your recently added Plex titles.</div>';
+    return;
+  }
+
+  ul.innerHTML = '';
+  rotation.forEach(e => {
+    const li = document.createElement('li');
+    li.className = 'rot-row' + (e.enabled ? '' : ' disabled');
+    li.draggable = true;
+    li.dataset.id = e.id;
+    li.innerHTML = `
+      <span class="handle">⋮⋮</span>
+      <img class="rot-thumb" src="/api/preview?url=${encodeURIComponent(e.url)}" alt="">
+      <div class="rot-meta">
+        <div class="rot-title">${esc(e.title)}</div>
+        <div class="rot-sub">${e.media_type}</div>
+      </div>
+      <div class="rot-actions">
+        <button class="act ${e.enabled ? 'on-badge' : ''}" data-toggle="${e.id}">
+          ${e.enabled ? 'On' : 'Off'}
+        </button>
+        <button class="act danger" data-del="${e.id}">Delete</button>
+      </div>`;
+    ul.appendChild(li);
+  });
+  attachDrag();
+}
+
+document.getElementById('rotation').addEventListener('click', async e => {
+  const tog = e.target.closest('[data-toggle]');
+  if (tog) {
+    await fetch(`/api/library/${tog.dataset.toggle}/toggle`, { method: 'POST' });
+    toast('Updated');
+    loadRotation();
+    return;
+  }
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    const entry = rotation.find(x => x.id === del.dataset.del);
+    if (confirm(`Remove "${entry ? entry.title : 'this banner'}" from rotation?`)) {
+      await fetch(`/api/library/${del.dataset.del}`, { method: 'DELETE' });
+      toast('Removed');
+      loadRotation();
+    }
+  }
+});
+
+// ── Drag to reorder ──
+let dragEl = null;
+function attachDrag() {
+  const rows = [...document.querySelectorAll('.rot-row')];
+  rows.forEach(row => {
+    row.addEventListener('dragstart', () => { dragEl = row; row.style.opacity = '0.4'; });
+    row.addEventListener('dragend',   () => { row.style.opacity = ''; commitOrder(); });
+    row.addEventListener('dragover',  e => {
+      e.preventDefault();
+      if (row === dragEl) return;
+      const after = (e.clientY - row.getBoundingClientRect().top) / row.offsetHeight > 0.5;
+      row.parentNode.insertBefore(dragEl, after ? row.nextSibling : row);
+    });
+  });
+}
+
+async function commitOrder() {
+  const order = [...document.querySelectorAll('.rot-row')].map(r => r.dataset.id);
+  rotation.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  await fetch('/api/reorder', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ order })
+  });
+  toast('Order saved', 'ok');
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+loadRotation();
+</script>
+</body>
+</html>
