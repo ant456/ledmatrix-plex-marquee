@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
 cache/
+library.json
 .DS_Store
-.claude/
+.dependencies_installed

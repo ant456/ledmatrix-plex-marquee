@@ -1,15 +1,21 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "required": ["tmdb_token", "fanart_api_key"],
   "properties": {
-    "enabled":          { "type": "boolean", "default": true },
-    "display_duration": { "type": "number",  "default": 30 },
-    "update_interval":  { "type": "integer", "default": 15 },
-    "live_priority":    { "type": "boolean", "default": false },
-    "ha_url":           { "type": "string",  "default": "http://192.168.0.36:8123" },
-    "ha_token":         { "type": "string",  "description": "HA long-lived access token" },
-    "tmdb_token":       { "type": "string",  "description": "TMDB API Bearer token" },
-    "fanart_api_key":   { "type": "string",  "description": "Fanart.tv API key" },
-    "plex_entities":    { "type": "array",   "items": { "type": "string" } }
+    "enabled":            { "type": "boolean", "default": true },
+    "display_duration":   { "type": "number",  "default": 30 },
+    "rotation_duration":  { "type": "number",  "default": 30 },
+    "update_interval":    { "type": "integer", "default": 15 },
+    "auto_recent_count":  { "type": "integer", "default": 20 },
+    "portal_port":        { "type": "integer", "default": 5009 },
+    "live_priority":      { "type": "boolean", "default": true },
+    "plex_url":           { "type": "string",  "description": "Plex server URL, e.g. http://192.168.0.100:32400" },
+    "plex_token":         { "type": "string",  "description": "Plex token (X-Plex-Token)" },
+    "plex_entities":      { "type": "array",   "items": { "type": "string" }, "default": [], "description": "HA media_player entity IDs for your Plex players" },
+    "ha_url":             { "type": "string",  "description": "Home Assistant URL, e.g. http://192.168.0.100:8123" },
+    "ha_token":           { "type": "string",  "description": "HA long-lived access token" },
+    "tmdb_token":         { "type": "string",  "description": "TMDB API Read Access Token (starts with eyJ) — NOT the v3 API key. Get it at themoviedb.org → Settings → API → API Read Access Token" },
+    "fanart_api_key":     { "type": "string",  "description": "Fanart.tv API key — get it at fanart.tv/get-an-api-key" }
   }
 }

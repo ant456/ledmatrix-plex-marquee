@@ -17,7 +17,9 @@ Web portal (port 5009):
 Config:
   plex_url        — e.g. http://192.168.0.105:32400
   plex_token      — your Plex token (X-Plex-Token)
-  tmdb_token      — TMDB Bearer token (for ID lookup)
+  tmdb_token      — TMDB API Read Access Token (Bearer token — NOT the v3 API key).
+                    Get it at: themoviedb.org → Settings → API → API Read Access Token.
+                    It starts with "eyJ..."
   fanart_api_key  — Fanart.tv API key
   ha_url          — Home Assistant URL
   ha_token        — HA long-lived access token
@@ -89,16 +91,13 @@ class PlexMarqueePlugin(BasePlugin):
         super().__init__(plugin_id, config, display_manager, cache_manager, plugin_manager)
 
         # Config
-        self.plex_url:       str  = config.get("plex_url", "http://192.168.0.105:32400").rstrip("/")
+        self.plex_url:       str  = config.get("plex_url", "").rstrip("/")
         self.plex_token:     str  = config.get("plex_token", "")
         self.tmdb_token:     str  = config.get("tmdb_token", "")
         self.fanart_api_key: str  = config.get("fanart_api_key", "")
-        self.ha_url:         str  = config.get("ha_url", "http://192.168.0.36:8123").rstrip("/")
+        self.ha_url:         str  = config.get("ha_url", "").rstrip("/")
         self.ha_token:       str  = config.get("ha_token", "")
-        self.plex_entities: List[str] = config.get("plex_entities", [
-            "media_player.plex_plex_for_android_tv_google_tv_streamer",
-            "media_player.plex_plex_for_android_tv_shield_android_tv",
-        ])
+        self.plex_entities: List[str] = config.get("plex_entities", [])
         self.portal_port:      int   = int(config.get("portal_port", 5009))
         self.rotation_duration: float = float(config.get("rotation_duration", 30))
         self.auto_recent_count: int   = int(config.get("auto_recent_count", 20))
@@ -119,6 +118,9 @@ class PlexMarqueePlugin(BasePlugin):
         # Image cache: url -> PIL Image scaled to display
         self._img_cache: Dict[str, Optional[Image.Image]] = {}
         self._img_lock   = threading.Lock()
+
+        # TVDB ID cache: tmdb_id -> tvdb_id (TV shows only)
+        self._tvdb_cache: Dict[int, Optional[int]] = {}
 
         # Playback state
         self._playing      = PlayingState()
@@ -200,6 +202,8 @@ class PlexMarqueePlugin(BasePlugin):
     # ── HA — find active Plex player ─────────────────────────────────────────
 
     def _find_active_plex(self) -> Optional[Dict]:
+        if not self.ha_url or not self.ha_token:
+            return None
         hdrs = {"Authorization": f"Bearer {self.ha_token}", "Content-Type": "application/json"}
         for eid in self.plex_entities:
             data = self._get_json(f"{self.ha_url}/api/states/{eid}", hdrs)
@@ -212,6 +216,8 @@ class PlexMarqueePlugin(BasePlugin):
     def _plex_xml(self, path: str, extra_params: str = "") -> Optional[Any]:
         """Fetch Plex API and parse XML response."""
         import xml.etree.ElementTree as ET
+        if not self.plex_url:
+            return None
         sep = "&" if "?" in path else "?"
         url = f"{self.plex_url}{path}{sep}X-Plex-Token={self.plex_token}{extra_params}"
         try:
@@ -261,6 +267,7 @@ class PlexMarqueePlugin(BasePlugin):
 
     def _tmdb_id(self, title: str, year: str, media_type: str) -> Optional[int]:
         if not self.tmdb_token:
+            self.logger.warning("tmdb_token not configured -- must be the TMDB API Read Access Token (starts with eyJ), NOT the v3 API key. Get it at: themoviedb.org -> Settings -> API -> API Read Access Token")
             return None
         hdrs = {"Authorization": f"Bearer {self.tmdb_token}", "Accept": "application/json"}
         stype = "movie" if media_type == "movie" else "tv"
@@ -280,12 +287,42 @@ class PlexMarqueePlugin(BasePlugin):
                 return data["results"][0].get("id")
         return None
 
+    def _tvdb_id(self, tmdb_id: int) -> Optional[int]:
+        """Resolve TMDB TV ID -> TVDB ID via TMDB external_ids endpoint.
+        Fanart.tv /tv/ endpoint requires TVDB ID, not TMDB ID."""
+        if tmdb_id in self._tvdb_cache:
+            return self._tvdb_cache[tmdb_id]
+        if not self.tmdb_token:
+            self._tvdb_cache[tmdb_id] = None
+            return None
+        hdrs = {"Authorization": f"Bearer {self.tmdb_token}", "Accept": "application/json"}
+        data = self._get_json(f"{self.TMDB_BASE}/tv/{tmdb_id}/external_ids", hdrs)
+        tvdb = int(data["tvdb_id"]) if data and data.get("tvdb_id") else None
+        self._tvdb_cache[tmdb_id] = tvdb
+        if tvdb:
+            self.logger.debug("TVDB ID for tmdb=%d -> tvdb=%d", tmdb_id, tvdb)
+        else:
+            self.logger.warning("No TVDB ID found for tmdb_id=%d", tmdb_id)
+        return tvdb
+
     # ── Fanart.tv ─────────────────────────────────────────────────────────────
 
     def _fanart_all_banners(self, tmdb_id: int, media_type: str) -> List[Dict]:
-        """Return ALL banner/background URLs from Fanart.tv for a title."""
-        endpoint = "movies" if media_type == "movie" else "tv"
-        url  = f"{self.FANART_BASE}/{endpoint}/{tmdb_id}?api_key={self.fanart_api_key}"
+        """Return ALL banner/background URLs from Fanart.tv for a title.
+        Movies use TMDB ID directly. TV shows require TVDB ID."""
+        if media_type == "movie":
+            fanart_id = tmdb_id
+            endpoint  = "movies"
+        else:
+            # Fanart.tv /tv/ requires TVDB ID, not TMDB ID
+            fanart_id = self._tvdb_id(tmdb_id)
+            endpoint  = "tv"
+            if not fanart_id:
+                self.logger.warning(
+                    "Cannot fetch Fanart.tv banners for tmdb_id=%d — no TVDB ID", tmdb_id)
+                return []
+
+        url  = f"{self.FANART_BASE}/{endpoint}/{fanart_id}?api_key={self.fanart_api_key}"
         data = self._get_json(url, {"User-Agent": "LEDMatrix-PlexMarquee/1.0"})
         if not data:
             return []
@@ -301,9 +338,9 @@ class PlexMarqueePlugin(BasePlugin):
                 img_url = item.get("url", "")
                 if img_url:
                     banners.append({
-                        "url":  img_url,
-                        "type": key,
-                        "lang": item.get("lang", ""),
+                        "url":   img_url,
+                        "type":  key,
+                        "lang":  item.get("lang", ""),
                         "likes": int(item.get("likes", 0)),
                     })
 
@@ -506,10 +543,8 @@ class PlexMarqueePlugin(BasePlugin):
             dm = self.display_manager
 
             if is_playing and play_banner:
-                # Live — show current title's banner
                 dm.image.paste(play_banner, (0, 0))
             else:
-                # Rotation
                 img = self._advance_rotation()
                 if img:
                     dm.image.paste(img, (0, 0))
@@ -558,8 +593,8 @@ class PlexMarqueePlugin(BasePlugin):
         @app.route("/api/banners", methods=["GET"])
         def banners():
             """Return all Fanart.tv banners for a title."""
-            title     = request.args.get("title", "").strip()
-            year      = request.args.get("year", "").strip()
+            title      = request.args.get("title", "").strip()
+            year       = request.args.get("year", "").strip()
             media_type = request.args.get("type", "movie").strip()
             if not title:
                 return jsonify({"error": "title required"}), 400
@@ -652,5 +687,8 @@ class PlexMarqueePlugin(BasePlugin):
             return False
         if not self.fanart_api_key:
             self.logger.error("fanart_api_key is required")
+            return False
+        if not self.tmdb_token:
+            self.logger.error("tmdb_token is required -- must be the TMDB API Read Access Token (starts with eyJ), NOT the v3 API key. Get it at: themoviedb.org -> Settings -> API -> API Read Access Token")
             return False
         return True

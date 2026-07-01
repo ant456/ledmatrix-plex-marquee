@@ -1,14 +1,15 @@
 {
   "id": "plex-marquee",
   "name": "Plex Marquee",
-  "version": "1.0.0",
-  "description": "Cinema marquee display — shows TMDB backdrop art for whatever is playing on any Plex player. Keeps last artwork showing when nothing is playing.",
-  "author": "Custom",
+  "version": "1.1.0",
+  "description": "Cinema marquee display — rotates Fanart.tv banner art and shows the current playing title's banner live from any Plex player. Includes a web portal to browse and curate your banner rotation.",
+  "author": "ant456",
   "entry_point": "manager.py",
   "class_name": "PlexMarqueePlugin",
   "display_modes": ["plex_marquee"],
   "update_interval": 15,
   "versions": [
+    { "version": "1.1.0", "released": "2026-07-01", "ledmatrix_min": "2.0.0", "notes": "TV show banner fix (TVDB ID resolution); removed hardcoded IPs" },
     { "version": "1.0.0", "released": "2026-06-22", "ledmatrix_min": "2.0.0" }
   ]
 }
